@@ -34,6 +34,8 @@ typedef struct {
 
 static ngx_int_t ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data);
 static void *ngx_http_secure_link_hash_create_conf(ngx_conf_t *cf);
 static char *ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent,
     void *child);
@@ -441,7 +443,7 @@ digest_failed:
     if (md) {
         EVP_MD_CTX_destroy(md);
     }
-    d = NULL;
+    md = NULL;
 
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                   "secure link hash: digest calculation failed");
@@ -472,8 +474,8 @@ ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    v->data = key.data;
-    v->len = key.len;
+    v->data = secret.data;
+    v->len = secret.len;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
