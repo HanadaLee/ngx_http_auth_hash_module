@@ -64,7 +64,6 @@ location ^~ /files/ {
     # In production environment, we should not reveal to potential attacker
     # why hash authentication has failed
     # - If the hash is incorrect then $secure_link_hash is a NULL string.
-    # - If the hash is correct but the link has already expired then $secure_link_hash is "0".
     # - If the hash is correct and the link has not expired then $secure_link_hash is "1".
     if ($secure_link_hash != "1") {
         return 403;
@@ -166,7 +165,8 @@ echo "http://127.0.0.1$URL?st=$TOKEN&ts=$TIME_STAMP&e=$EXPIRES"
 
 Embedded Variables
 ==================
-* `$secure_link_hash` -
+* `$secure_link_hash` - If the hash is correct and the link has not expired then $secure_link_hash is "1". Otherwise, it is null.
+* `$secure_link_hash_secret` - The value of the secure_link_hash_secret directive 
 
 
 Contributing:
