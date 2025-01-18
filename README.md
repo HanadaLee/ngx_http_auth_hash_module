@@ -81,11 +81,11 @@ Application side should use a standard hash function to generate hash, which the
 ```nginx
 perl_set $secure_token '
     sub {
-        use Digest::SHA qw(hmac_sha256_base64);
+        use Digest::SHA qw(sha256_base64);
         use POSIX qw(strftime);
 
         my $now = time();
-        my $key = "my_very_secret_key";
+        my $secret = "my_very_secret_key";
         my $expire = 60;
         my $tz = strftime("%z", localtime($now));
         $tz =~ s/(\d{2})(\d{2})/$1:$2/;
@@ -94,11 +94,14 @@ perl_set $secure_token '
         my $data = $r->uri;
 
         # hex
-        my $hex_digest = unpack("H*", $digest);
+        my $string_to_hash = $data . "|" . $timestamp . "|" . $expire . "|" . $secret;
+        my $digest_binary = sha256($string_to_hash);
+        my $digest = unpack("H*", $digest_binary);
 
         # base64url
-        # my $digest = hmac_sha256_base64($data . "|" . $timestamp . "|" . $expire,  $key);
-        # $digest =~ tr(+/)(-_);
+        # my $digest = sha256_base64($data . "|" . $timestamp . "|" . $expire . "|" . $secret);
+        # $digest =~ tr/+/_/;
+        # $digest =~ s/=+$//;
 
         $data = "st=" . $digest . "&ts=" . $timestamp . "&e=" . $expire;
         return $data;
@@ -114,15 +117,15 @@ $expire = 60;
 $algo = 'sha256';
 $timestamp = date('c');
 $unixtimestamp = time();
-$stringtosign = "/files/top_secret.pdf|{$unixtimestamp}|{$expire}";
+$stringtosign = "/files/top_secret.pdf|{$unixtimestamp}|{$expire}|{$secret}";
 // hex
-$hashmac = bin2hex(hash_hmac($algo, $stringtosign, $secret, true));
+$hash = bin2hex(hash($algo, $stringtosign, true));
 // base64url
-// $hashmac = base64_encode(hash_hmac($algo, $stringtosign, $secret, true));
-// $hashmac = strtr($hashmac, '+/', '-_');
-// $hashmac = str_replace('=', '', $hashmac);
+// $hash = base64_encode(hash($algo, $stringtosign, true));
+// $hash = strtr($hash, '+/', '-_');
+// $hash = str_replace('=', '', $hash);
 $host = $_SERVER['HTTP_HOST'];
-$loc = "https://{$host}/files/top_secret.pdf?st={$hashmac}&ts={$unixtimestamp}&e={$expire}";
+$loc = "https://{$host}/files/top_secret.pdf?st={$hash}&ts={$unixtimestamp}&e={$expire}";
 ```
 
 Using Unix timestamp in Node.js
@@ -132,15 +135,15 @@ const crypto = require("crypto");
 const secret = 'my_very_secret_key';
 const expire = 60;
 const unixTimestamp = Math.round(Date.now() / 1000.);
-const stringToSign = `/files/top_secret.pdf|${unixTimestamp}|${expire}`;
+const stringToSign = `/files/top_secret.pdf|${unixTimestamp}|${expire}|${secret}`;
 // hex
-const hashmac = crypto.createHmac('sha256', secret).update(stringToSign).digest('hex')
+const hash = crypto.createHash('sha256').update(stringToSign).digest('hex')
 // base64url
-// const hashmac = crypto.createHmac('sha256', secret).update(stringToSign).digest('base64')
+// const hash = crypto.createHash('sha256').update(stringToSign).digest('base64')
 //       .replace(/=/g, '')
 //       .replace(/\+/g, '-')
 //       .replace(/\//g, '_');
-const loc = `https://host/files/top_secret.pdf?st=${hashmac}&ts=${unixTimestamp}&e=${expire}`;
+const loc = `https://host/files/top_secret.pdf?st=${hash}&ts=${unixTimestamp}&e=${expire}`;
 ```
 
 Bash version
@@ -152,11 +155,11 @@ SECRET="my_super_secret"
 TIME_STAMP="$(date -d "today + 0 minutes" +%s)";
 EXPIRES="3600"; # seconds
 URL="/file/my_secret_file.txt"
-ST="$URL|$TIME_STAMP|$EXPIRES"
+ST="$URL|$TIME_STAMP|$EXPIRES|$SECRET"
 # hex
-TOKEN="$(echo -n $ST | openssl dgst -sha256 -hmac $SECRET | awk '{print $1}')"
+TOKEN="$(echo -n $ST | openssl dgst -sha256 | awk '{print $1}')"
 # Base64url
-# TOKEN="$(echo -n $ST | openssl dgst -sha256 -hmac $SECRET -binary | openssl base64 | tr +/ -_ | tr -d =)"
+# TOKEN="$(echo -n $ST | openssl dgst -sha256 -binary | openssl base64 | tr +/ -_ | tr -d =)"
 
 echo "http://127.0.0.1$URL?st=$TOKEN&ts=$TIME_STAMP&e=$EXPIRES"
 ```

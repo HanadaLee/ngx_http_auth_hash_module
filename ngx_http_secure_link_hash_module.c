@@ -133,6 +133,10 @@ static ngx_http_variable_t ngx_http_secure_link_hash_vars[] = {
       ngx_http_secure_link_hash_variable,
       0, NGX_HTTP_VAR_CHANGEABLE, 0 },
 
+    { ngx_string("secure_link_hash_secret"), NULL,
+      ngx_http_secure_link_hash_secret_variable,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
       ngx_http_null_variable
 };
 
@@ -149,10 +153,11 @@ ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
     time_t                        timestamp, now, start, end;
     ngx_int_t                     start_is_valid, end_is_valid;
     ngx_tm_t                      tm;
-    ngx_str_t                     hash, key;
+    ngx_str_t                     hash;
+    EVP_MD_CTX                   *md;
     u_char                        hash_buf[EVP_MAX_MD_SIZE];
-    u_char                        hmac_buf[EVP_MAX_MD_SIZE];
-    u_int                         hmac_len;
+    u_char                        digest_buf[EVP_MAX_MD_SIZE];
+    u_int                         digest_len;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_secure_link_hash_module);
 
@@ -392,13 +397,33 @@ token:
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "secure link hash: message: \"%V\"", &value);
 
-    if (ngx_http_complex_value(r, conf->secret, &key) != NGX_OK) {
-        return NGX_ERROR;
+    md = EVP_MD_CTX_create();
+    if (md == NULL) {
+        goto digest_failed;
     }
 
-    /* HMAC(evp_md, key.data, key.len, value.data, value.len, hmac_buf, &hmac_len); */
+    if (EVP_DigestInit_ex(md, evp_md, NULL) == 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "EVP_DigestInit_ex() failed");
+        goto digest_failed;
+    }
 
-    if (CRYPTO_memcmp(hash_buf, hmac_buf, EVP_MD_size(evp_md)) != 0) {
+    if (EVP_DigestUpdate(md, value.data, value.len) == 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "EVP_DigestUpdate() failed");
+        goto digest_failed;
+    }
+
+    if (EVP_DigestFinal_ex(md, digest_buf, &digest_len) == 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "EVP_DigestFinal_ex() failed");
+        goto digest_failed;
+    }
+
+    EVP_MD_CTX_destroy(md);
+    md = NULL;
+
+    if (CRYPTO_memcmp(hash_buf, digest_buf, EVP_MD_size(evp_md)) != 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "secure link hash: token value mismatch");
         goto not_found;
@@ -412,9 +437,46 @@ token:
 
     return NGX_OK;
 
+digest_failed:
+    if (md) {
+        EVP_MD_CTX_destroy(md);
+    }
+    d = NULL;
+
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                  "secure link hash: digest calculation failed");
+
 not_found:
 
     v->not_found = 1;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data)
+{
+    ngx_http_secure_link_hash_conf_t  *conf;
+    ngx_str_t                          secret;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_secure_link_hash_module);
+
+    if (conf->secret == NULL) {
+        v->not_found = 1;
+        return NGX_OK;
+    }
+
+    if (ngx_http_complex_value(r, conf->secret, &secret) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    v->data = key.data;
+    v->len = key.len;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
 
     return NGX_OK;
 }
