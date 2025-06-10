@@ -6,15 +6,15 @@
 #include <openssl/crypto.h>
 
 
-#define NGX_HTTP_SECURE_LINK_HASH_TIMESTAMP     1
-#define NGX_HTTP_SECURE_LINK_HASH_MSTIMESTAMP   2
-#define NGX_HTTP_SECURE_LINK_HASH_HEXTIMESTAMP  3
-#define NGX_HTTP_SECURE_LINK_HASH_DATE          4
+#define NGX_HTTP_AUTH_HASH_TIMESTAMP     1
+#define NGX_HTTP_AUTH_HASH_MSTIMESTAMP   2
+#define NGX_HTTP_AUTH_HASH_HEXTIMESTAMP  3
+#define NGX_HTTP_AUTH_HASH_DATE          4
 
-#define NGX_HTTP_SECURE_LINK_HASH_HEX           1
-#define NGX_HTTP_SECURE_LINK_HASH_BASE64URL     2
-#define NGX_HTTP_SECURE_LINK_HASH_BASE64        3
-#define NGX_HTTP_SECURE_LINK_HASH_BIN           4
+#define NGX_HTTP_AUTH_HASH_HEX           1
+#define NGX_HTTP_AUTH_HASH_BASE64URL     2
+#define NGX_HTTP_AUTH_HASH_BASE64        3
+#define NGX_HTTP_AUTH_HASH_BIN           4
 
 typedef struct {
     ngx_flag_t                 enable;
@@ -29,77 +29,77 @@ typedef struct {
     time_t                     time_offset;
     ngx_uint_t                 token_digest;
     ngx_str_t                  algorithm;
-} ngx_http_secure_link_hash_conf_t;
+} ngx_http_auth_hash_conf_t;
 
 
-static ngx_int_t ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
+static ngx_int_t ngx_http_auth_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
-static ngx_int_t ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
+static ngx_int_t ngx_http_auth_hash_secret_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
-static void *ngx_http_secure_link_hash_create_conf(ngx_conf_t *cf);
-static char *ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent,
+static void *ngx_http_auth_hash_create_conf(ngx_conf_t *cf);
+static char *ngx_http_auth_hash_merge_conf(ngx_conf_t *cf, void *parent,
     void *child);
 
-static ngx_int_t ngx_http_secure_link_hash_hex_decode(ngx_str_t *dst,
+static ngx_int_t ngx_http_auth_hash_hex_decode(ngx_str_t *dst,
     ngx_str_t *src);
-static ngx_int_t ngx_http_secure_link_hash_is_valid_num(ngx_str_t *s);
-static char *ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
+static ngx_int_t ngx_http_auth_hash_is_valid_num(ngx_str_t *s);
+static char *ngx_http_auth_hash_check_time(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_secure_link_hash_check_token(ngx_conf_t *cf,
+static char *ngx_http_auth_hash_check_token(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static ngx_int_t ngx_http_secure_link_hash_add_variables(ngx_conf_t *cf);
+static ngx_int_t ngx_http_auth_hash_add_variables(ngx_conf_t *cf);
 
 
-static ngx_command_t  ngx_http_secure_link_hash_commands[] = {
+static ngx_command_t  ngx_http_auth_hash_commands[] = {
 
-    { ngx_string("secure_link_hash"),
+    { ngx_string("auth_hash"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_secure_link_hash_conf_t, enable),
+      offsetof(ngx_http_auth_hash_conf_t, enable),
       NULL },
 
-    { ngx_string("secure_link_hash_check_time"),
+    { ngx_string("auth_hash_check_time"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
-      ngx_http_secure_link_hash_check_time,
+      ngx_http_auth_hash_check_time,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("secure_link_hash_check_token"),
+    { ngx_string("auth_hash_check_token"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE12,
-      ngx_http_secure_link_hash_check_token,
+      ngx_http_auth_hash_check_token,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("secure_link_hash_message"),
+    { ngx_string("auth_hash_message"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_http_set_complex_value_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_secure_link_hash_conf_t, message),
+      offsetof(ngx_http_auth_hash_conf_t, message),
       NULL },
 
-    { ngx_string("secure_link_hash_secret"),
+    { ngx_string("auth_hash_secret"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_http_set_complex_value_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_secure_link_hash_conf_t, secret),
+      offsetof(ngx_http_auth_hash_conf_t, secret),
       NULL },
 
-    { ngx_string("secure_link_hash_algorithm"),
+    { ngx_string("auth_hash_algorithm"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_secure_link_hash_conf_t, algorithm),
+      offsetof(ngx_http_auth_hash_conf_t, algorithm),
       NULL },
 
       ngx_null_command
 };
 
 
-static ngx_http_module_t  ngx_http_secure_link_hash_module_ctx = {
-    ngx_http_secure_link_hash_add_variables,    /* preconfiguration */
+static ngx_http_module_t  ngx_http_auth_hash_module_ctx = {
+    ngx_http_auth_hash_add_variables,           /* preconfiguration */
     NULL,                                       /* postconfiguration */
 
     NULL,                                       /* create main configuration */
@@ -108,15 +108,15 @@ static ngx_http_module_t  ngx_http_secure_link_hash_module_ctx = {
     NULL,                                       /* create server configuration */
     NULL,                                       /* merge server configuration */
 
-    ngx_http_secure_link_hash_create_conf,      /* create location configuration */
-    ngx_http_secure_link_hash_merge_conf        /* merge location configuration */
+    ngx_http_auth_hash_create_conf,             /* create location configuration */
+    ngx_http_auth_hash_merge_conf               /* merge location configuration */
 };
 
 
-ngx_module_t  ngx_http_secure_link_hash_module = {
+ngx_module_t  ngx_http_auth_hash_module = {
     NGX_MODULE_V1,
-    &ngx_http_secure_link_hash_module_ctx,      /* module context */
-    ngx_http_secure_link_hash_commands,         /* module directives */
+    &ngx_http_auth_hash_module_ctx,             /* module context */
+    ngx_http_auth_hash_commands,                /* module directives */
     NGX_HTTP_MODULE,                            /* module type */
     NULL,                                       /* init master */
     NULL,                                       /* init module */
@@ -129,14 +129,14 @@ ngx_module_t  ngx_http_secure_link_hash_module = {
 };
 
 
-static ngx_http_variable_t ngx_http_secure_link_hash_vars[] = {
+static ngx_http_variable_t ngx_http_auth_hash_vars[] = {
 
-    { ngx_string("secure_link_hash"), NULL,
-      ngx_http_secure_link_hash_variable,
+    { ngx_string("auth_hash"), NULL,
+      ngx_http_auth_hash_variable,
       0, NGX_HTTP_VAR_CHANGEABLE, 0 },
 
-    { ngx_string("secure_link_hash_secret"), NULL,
-      ngx_http_secure_link_hash_secret_variable,
+    { ngx_string("auth_hash_secret"), NULL,
+      ngx_http_auth_hash_secret_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
       ngx_http_null_variable
@@ -144,10 +144,10 @@ static ngx_http_variable_t ngx_http_secure_link_hash_vars[] = {
 
 
 static ngx_int_t
-ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
+ngx_http_auth_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_secure_link_hash_conf_t  *conf;
+    ngx_http_auth_hash_conf_t  *conf;
 
     const EVP_MD                 *evp_md;
     ngx_str_t                     value;
@@ -161,7 +161,7 @@ ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
     u_char                        digest_buf[EVP_MAX_MD_SIZE];
     u_int                         digest_len;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_secure_link_hash_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_hash_module);
 
     if (!conf->enable
         || conf->token == NULL
@@ -281,10 +281,10 @@ ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
         goto not_found;
     }
 
-    if (conf->time_mode == NGX_HTTP_SECURE_LINK_HASH_TIMESTAMP) {
+    if (conf->time_mode == NGX_HTTP_AUTH_HASH_TIMESTAMP) {
         timestamp = (time_t) ngx_atoi(value.data, value.len);
 
-    } else if (conf->time_mode == NGX_HTTP_SECURE_LINK_HASH_MSTIMESTAMP) {
+    } else if (conf->time_mode == NGX_HTTP_AUTH_HASH_MSTIMESTAMP) {
 
         if (value.len < 4) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -295,10 +295,10 @@ ngx_http_secure_link_hash_variable(ngx_http_request_t *r,
         /* cut off the milliseconds part */
         timestamp = (time_t) ngx_atoi(value.data , value.len - 3);
 
-    } else if (conf->time_mode == NGX_HTTP_SECURE_LINK_HASH_HEXTIMESTAMP) {
+    } else if (conf->time_mode == NGX_HTTP_AUTH_HASH_HEXTIMESTAMP) {
         timestamp = (time_t) ngx_hextoi(value.data, value.len);
 
-    } else { /* NGX_HTTP_SECURE_LINK_HASH_DATE */
+    } else { /* NGX_HTTP_AUTH_HASH_DATE */
         ngx_memzero(&tm, sizeof(ngx_tm_t));
 
         if (strptime((char *) value.data,
@@ -359,14 +359,14 @@ token:
         goto not_found;
     }
 
-    if (conf->token_digest == NGX_HTTP_SECURE_LINK_HASH_HEX) {
-        if (ngx_http_secure_link_hash_hex_decode(&hash, &value) != NGX_OK) {
+    if (conf->token_digest == NGX_HTTP_AUTH_HASH_HEX) {
+        if (ngx_http_auth_hash_hex_decode(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                         "secure link hash: token hex decode fail");
             goto not_found;
         }
 
-    } else if (conf->token_digest == NGX_HTTP_SECURE_LINK_HASH_BASE64) {
+    } else if (conf->token_digest == NGX_HTTP_AUTH_HASH_BASE64) {
 
         if (ngx_decode_base64(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -374,7 +374,7 @@ token:
             goto not_found;
         }
 
-    } else if (conf->token_digest == NGX_HTTP_SECURE_LINK_HASH_BASE64URL) {
+    } else if (conf->token_digest == NGX_HTTP_AUTH_HASH_BASE64URL) {
 
         if (ngx_decode_base64url(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -457,13 +457,13 @@ not_found:
 
 
 static ngx_int_t
-ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
+ngx_http_auth_hash_secret_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_secure_link_hash_conf_t  *conf;
+    ngx_http_auth_hash_conf_t  *conf;
     ngx_str_t                          secret;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_secure_link_hash_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_auth_hash_module);
 
     if (conf->secret == NULL) {
         v->not_found = 1;
@@ -485,11 +485,11 @@ ngx_http_secure_link_hash_secret_variable(ngx_http_request_t *r,
 
 
 static void *
-ngx_http_secure_link_hash_create_conf(ngx_conf_t *cf)
+ngx_http_auth_hash_create_conf(ngx_conf_t *cf)
 {
-    ngx_http_secure_link_hash_conf_t  *conf;
+    ngx_http_auth_hash_conf_t  *conf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_secure_link_hash_conf_t));
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_auth_hash_conf_t));
     if (conf == NULL) {
         return NULL;
     }
@@ -517,10 +517,10 @@ ngx_http_secure_link_hash_create_conf(ngx_conf_t *cf)
 
 
 static char *
-ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent, void *child)
+ngx_http_auth_hash_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_http_secure_link_hash_conf_t *prev = parent;
-    ngx_http_secure_link_hash_conf_t *conf = child;
+    ngx_http_auth_hash_conf_t *prev = parent;
+    ngx_http_auth_hash_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
 
@@ -529,7 +529,7 @@ ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->start = prev->start;
         conf->end = prev->end;
         ngx_conf_merge_uint_value(conf->time_mode,
-            prev->time_mode, NGX_HTTP_SECURE_LINK_HASH_TIMESTAMP);
+            prev->time_mode, NGX_HTTP_AUTH_HASH_TIMESTAMP);
         ngx_conf_merge_str_value(conf->time_format, prev->time_format, "%s");
         ngx_conf_merge_value(conf->time_offset, prev->time_offset, 0);
     }
@@ -537,7 +537,7 @@ ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->token == NULL) {
         conf->token = prev->token;
         ngx_conf_merge_uint_value(conf->token_digest,
-            prev->token_digest, NGX_HTTP_SECURE_LINK_HASH_HEX);
+            prev->token_digest, NGX_HTTP_AUTH_HASH_HEX);
     }
 
     if (conf->message == NULL) {
@@ -555,7 +555,7 @@ ngx_http_secure_link_hash_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
 
 static ngx_int_t
-ngx_http_secure_link_hash_is_valid_num(ngx_str_t *s)
+ngx_http_auth_hash_is_valid_num(ngx_str_t *s)
 {
     u_char      *p;
     size_t       len;
@@ -609,10 +609,10 @@ ngx_http_secure_link_hash_is_valid_num(ngx_str_t *s)
 
 
 static char *
-ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
+ngx_http_auth_hash_check_time(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_secure_link_hash_conf_t *slcf = conf;
+    ngx_http_auth_hash_conf_t *slcf = conf;
 
     ngx_uint_t                          i, j;
     ngx_str_t                          *value;
@@ -651,22 +651,22 @@ ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
             s.data = value[i].data + 7;
 
             if (s.len == 2 && s.data[0] == '%' && s.data[1] == 's') {
-                slcf->time_mode = NGX_HTTP_SECURE_LINK_HASH_TIMESTAMP;
+                slcf->time_mode = NGX_HTTP_AUTH_HASH_TIMESTAMP;
                 continue;
             }
 
             if (s.len == 3 && s.data[0] == '%'
                 && s.data[1] == 'm' && s.data[2] == 's') {
-                slcf->time_mode = NGX_HTTP_SECURE_LINK_HASH_MSTIMESTAMP;
+                slcf->time_mode = NGX_HTTP_AUTH_HASH_MSTIMESTAMP;
                 continue;
             }
 
             if (s.len == 2 && s.data[0] == '%' && s.data[1] == 'x') {
-                slcf->time_mode = NGX_HTTP_SECURE_LINK_HASH_HEXTIMESTAMP;
+                slcf->time_mode = NGX_HTTP_AUTH_HASH_HEXTIMESTAMP;
                 continue;
             }
 
-            slcf->time_mode = NGX_HTTP_SECURE_LINK_HASH_DATE;
+            slcf->time_mode = NGX_HTTP_AUTH_HASH_DATE;
             slcf->time_format = s;
 
             continue;
@@ -727,7 +727,7 @@ ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
             s.data = value[i].data + 12;
 
             if (ngx_strlchr(s.data, s.data + s.len, '$') == NULL) {
-                if (!ngx_http_secure_link_hash_is_valid_num(&s)) {
+                if (!ngx_http_auth_hash_is_valid_num(&s)) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                         "invalid numeric value in start parameter \"%V\"", &s);
                     return NGX_CONF_ERROR;
@@ -758,7 +758,7 @@ ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
             s.data = value[i].data + 10;
 
             if (ngx_strlchr(s.data, s.data + s.len, '$') == NULL) {
-                if (!ngx_http_secure_link_hash_is_valid_num(&s)) {
+                if (!ngx_http_auth_hash_is_valid_num(&s)) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                         "invalid numeric value in end parameter \"%V\"", &s);
                     return NGX_CONF_ERROR;
@@ -786,10 +786,10 @@ ngx_http_secure_link_hash_check_time(ngx_conf_t *cf,
 
 
 static char *
-ngx_http_secure_link_hash_check_token(ngx_conf_t *cf,
+ngx_http_auth_hash_check_token(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
 {
-    ngx_http_secure_link_hash_conf_t *slcf = conf;
+    ngx_http_auth_hash_conf_t *slcf = conf;
 
     ngx_str_t                          *value;
     ngx_http_compile_complex_value_t    ccv;
@@ -819,16 +819,16 @@ ngx_http_secure_link_hash_check_token(ngx_conf_t *cf,
     if (cf->args->nelts == 3) {
 
         if (ngx_strncmp(value[2].data, "digest=hex", 10) == 0) {
-            slcf->token_digest = NGX_HTTP_SECURE_LINK_HASH_HEX;
+            slcf->token_digest = NGX_HTTP_AUTH_HASH_HEX;
 
         } else if (ngx_strncmp(value[2].data, "digest=base64url", 16) == 0) {
-            slcf->token_digest = NGX_HTTP_SECURE_LINK_HASH_BASE64URL;
+            slcf->token_digest = NGX_HTTP_AUTH_HASH_BASE64URL;
 
         } else if (ngx_strncmp(value[2].data, "digest=base64", 13) == 0) {
-            slcf->token_digest = NGX_HTTP_SECURE_LINK_HASH_BASE64;
+            slcf->token_digest = NGX_HTTP_AUTH_HASH_BASE64;
 
         } else if (ngx_strncmp(value[2].data, "digest=bin", 10) == 0) {
-            slcf->token_digest = NGX_HTTP_SECURE_LINK_HASH_BIN;
+            slcf->token_digest = NGX_HTTP_AUTH_HASH_BIN;
 
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -837,7 +837,7 @@ ngx_http_secure_link_hash_check_token(ngx_conf_t *cf,
         }
 
     } else {
-        slcf->token_digest = NGX_HTTP_SECURE_LINK_HASH_HEX;
+        slcf->token_digest = NGX_HTTP_AUTH_HASH_HEX;
     }
 
     return NGX_CONF_OK;
@@ -845,7 +845,7 @@ ngx_http_secure_link_hash_check_token(ngx_conf_t *cf,
 
 
 static ngx_int_t
-ngx_http_secure_link_hash_hex_decode(ngx_str_t *dst, ngx_str_t *src)
+ngx_http_auth_hash_hex_decode(ngx_str_t *dst, ngx_str_t *src)
 {
     size_t      i, half_len;
     u_char     *p;
@@ -880,11 +880,11 @@ ngx_http_secure_link_hash_hex_decode(ngx_str_t *dst, ngx_str_t *src)
 
 
 static ngx_int_t
-ngx_http_secure_link_hash_add_variables(ngx_conf_t *cf)
+ngx_http_auth_hash_add_variables(ngx_conf_t *cf)
 {
     ngx_http_variable_t  *var, *v;
 
-    for (v = ngx_http_secure_link_hash_vars; v->name.len; v++) {
+    for (v = ngx_http_auth_hash_vars; v->name.len; v++) {
         var = ngx_http_add_variable(cf, &v->name, v->flags);
         if (var == NULL) {
             return NGX_ERROR;
