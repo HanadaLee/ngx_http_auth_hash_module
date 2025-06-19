@@ -56,7 +56,7 @@ location ^~ /files/ {
     auth_hash_secret "my_secret_key";
 
     # Message to be verified
-    auth_hash_message "$uri|$arg_ts|$arg_e";
+    auth_hash_message "$uri|$arg_ts|$arg_e|$auth_hash_secret";
 
     # Cryptographic hash function to be used
     auth_hash_algorithm sha256;

@@ -169,7 +169,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
         || conf->secret == NULL)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                    "secure link hash: disabled");
+                    "auth hash: disabled");
         goto not_found;
     }
 
@@ -267,7 +267,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
         || (start_is_valid == 1 && end_is_valid == 1 && start > end))
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                    "secure link hash: invalid time range");
+                    "auth hash: invalid time range");
         goto not_found;
     }
 
@@ -277,7 +277,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
 
     if (value.len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                    "secure link hash: time is empty");
+                    "auth hash: time is empty");
         goto not_found;
     }
 
@@ -288,7 +288,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
 
         if (value.len < 4) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "secure link hash: time len too short");
+                        "auth hash: time len too short");
             goto not_found;
         }
 
@@ -313,7 +313,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
         
         if (timestamp == (time_t) NGX_ERROR) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "secure link hash: date conversion failed");
+                        "auth hash: date conversion failed");
             goto not_found;
         }
 
@@ -322,7 +322,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
 
     if (timestamp <= 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "secure link hash: timestamp must be positive num");
+                      "auth hash: timestamp must be positive num");
         goto not_found;
     }
 
@@ -331,7 +331,7 @@ ngx_http_auth_hash_variable(ngx_http_request_t *r,
         || (end_is_valid && (now > timestamp + end)))
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "secure link hash: is not yet valid or has expired");
+                      "auth hash: request not yet valid or expired");
         goto not_found;
     }
 
@@ -340,7 +340,7 @@ token:
     evp_md = EVP_get_digestbyname((const char*) conf->algorithm.data);
     if (evp_md == NULL) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "secure link hash: unknown cryptographic "
+                       "auth hash: unknown cryptographic "
                        "hash function \"%s\"", conf->algorithm.data);
 
         return NGX_ERROR;
@@ -355,14 +355,14 @@ token:
 
     if (value.len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "secure link hash: token is empty");
+                      "auth hash: token is empty");
         goto not_found;
     }
 
     if (conf->token_digest == NGX_HTTP_AUTH_HASH_HEX) {
         if (ngx_http_auth_hash_hex_decode(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "secure link hash: token hex decode fail");
+                        "auth hash: token hex decode fail");
             goto not_found;
         }
 
@@ -370,7 +370,7 @@ token:
 
         if (ngx_decode_base64(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "secure link hash: token base64 decode fail");
+                        "auth hash: token base64 decode fail");
             goto not_found;
         }
 
@@ -378,7 +378,7 @@ token:
 
         if (ngx_decode_base64url(&hash, &value) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "secure link hash: token base64url decode fail");
+                        "auth hash: token base64url decode fail");
             goto not_found;
         }
 
@@ -388,7 +388,7 @@ token:
 
     if (hash.len != (u_int) EVP_MD_size(evp_md)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                    "secure link hash: token len mismatch");
+                    "auth hash: token len mismatch");
         goto not_found;
     }
 
@@ -397,7 +397,7 @@ token:
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "secure link hash: message: \"%V\"", &value);
+                   "auth hash: message: \"%V\"", &value);
 
     md = EVP_MD_CTX_create();
     if (md == NULL) {
@@ -427,7 +427,7 @@ token:
 
     if (CRYPTO_memcmp(hash_buf, digest_buf, EVP_MD_size(evp_md)) != 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "secure link hash: token value mismatch");
+                      "auth hash: token value mismatch");
         goto not_found;
     }
 
@@ -446,7 +446,7 @@ digest_failed:
     md = NULL;
 
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                  "secure link hash: digest calculation failed");
+                  "auth hash: digest calculation failed");
 
 not_found:
 
